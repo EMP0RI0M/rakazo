@@ -9,6 +9,7 @@
     "userInterfaceStyle": "dark",
     "icon": "./assets/icon.png",
     "plugins": [
+      "expo-dev-client",
       [
         "expo-splash-screen",
         {

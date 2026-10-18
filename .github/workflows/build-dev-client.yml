@@ -1,0 +1,66 @@
+name: Build Dev Client APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Android Dev Client APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Generate Android native project (Prebuild)
+        run: |
+          pnpm --filter @rakazo/mobile exec expo prebuild --platform android --no-install
+          sed -i 's/<application /<application android:usesCleartextTraffic="true" /' apps/mobile/android/app/src/main/AndroidManifest.xml
+          sed -i 's/MaxMetaspaceSize=512m/MaxMetaspaceSize=1g/' apps/mobile/android/gradle.properties
+
+      - name: Build Debug Dev-Client APK
+        working-directory: apps/mobile/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload Dev Client APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rakazo-dev-client-apk
+          path: apps/mobile/android/app/build/outputs/apk/debug/*.apk
+          retention-days: 7
+
+      - name: Create Release with APK
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
+        with:
+          tag_name: dev-client-latest
+          name: Rakazo Dev Client APK
+          body: "Latest custom Dev-Client APK with Rakazo native modules and expo-dev-client."
+          files: apps/mobile/android/app/build/outputs/apk/debug/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
